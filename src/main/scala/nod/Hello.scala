@@ -3,20 +3,41 @@ package nod
 import java.util.UUID
 
 import nod.core.Conversions._
-import nod.core.NProperty
 import nod.core.Statement._
-import shapeless.Id
+import shapeless._
 
 import scala.collection.immutable.TreeMap
 
 object Hello {
 
+  /**
+    * Overall goals:
+    * - describing schema
+    * - query builder with inline parameters
+    * - ensuring coherence between schema and queries
+    * - generate typesafe writers and readers for node properties
+    */
+  /**
+    * The objectives here are:
+    * - reduce boilerplate involved in describing properties of a node/relationship
+    *   - ideally this is not done manually
+    * - we need to describe various things about the schema, (node labels, rel types, outgoing rels, prop names and types, etc)
+    * - if there is a distinction between the data and the schema (a user case class and a user schema object),
+    * coherence between the two should be either automatic or typesafe (compile errors when there is a mismatch)
+    * - we need to have syntax that allows referencing some parts of the schema inside the `neo4j` interpolator, enumerated
+    * in the `Checklist` session
+    * - we should be able to destinguish between creating and updating a node, again, the coherence between both should either
+    * be guaranteed automatically or be a type error
+    *   - updating might more complex than setting/not setting a value, so maybe the MovieF[Option] trick is not useful enough
+    *   - might be better to force manual coherence, have only NodeProps[MovieUpd]
+    */
+
   /* The schema is useful because there are schema-ish things we can't encode in the case class structure (e.g outgoing relationships, labels) */
   object MovieSchema {
     val label: Label = Label("Label")
 
-    val name = Field("name") // TODO: remove repetition, shapeless?
-    val id = Field("id")
+    val name = Fieldname("name") // TODO: remove repetition, shapeless?
+    val id = Fieldname("id")
   }
 
   /*
@@ -91,17 +112,16 @@ object Hello {
     * That way we could just derive UpdateProps[MovieUpdate] normally
     *
     */
+
+  /*
   val update: Update[MovieUpdate] = movie => (
     Properties(TreeMap(MovieSchema.id.s -> movie.id.toString)),
-    Properties(TreeMap.empty[String, NProperty]
-      ++ movie.name.map(n => MovieSchema.name.s -> n)
-    )
+    Properties(TreeMap()).insert_(MovieSchema.name.s, movie.name.map(NStr))
   )
 
-  val updateProps: UpdateProps[MovieUpdate] = movie => Properties(
-    TreeMap.empty[String, NProperty]
-      ++ movie.name.map(n => MovieSchema.name.s -> n
-    ))
+  val updateProps: UpdateProps[MovieUpdate] = movie =>
+    Properties(TreeMap()).insert_(MovieSchema.name.s, movie.name.map(NStr))
+  */
 
   trait Update[DATA] {
     def update(data: DATA): (Properties, Properties)
@@ -111,28 +131,6 @@ object Hello {
     def update(data: DATA): Properties
   }
 
-  trait Coherence[SCHEMA, DATA] {
-
-  }
-
   def main(args: Array[String]): Unit = {
-
-    val n = Ident("n") // what names do they use in the AST?
-    val m = Ident("m")
-    val r = Ident("r")
-
-    val Person = Label("Person")
-    val name = Field("name")
-    val props = Properties(TreeMap("a" -> 1))
-
-    val M = MovieSchema
-
-    val value =
-      neo4j"""
-        MATCH ($n: $Person $props)-[$r: $Watched $wProps]->($m: ${M.label})
-        RETURN $m.${M.name}
-        """
-
-    println(value.mkString(""))
   }
 }
